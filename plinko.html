@@ -1,0 +1,534 @@
+<html>
+
+    <head>
+        
+    </head>
+
+    <body>
+        <script type="text/javascript" src="Box2dWeb-2.1.a.3.min.js" ></script>
+
+        <canvas id="canvas" width="998" height="800" style="border:1px solid #333333;" /></canvas>
+
+        <script>
+            // http://paulirish.com/2011/requestanimationframe-for-smart-animating/
+            window.requestAnimFrame = (function () {
+                return window.requestAnimationFrame ||
+                        window.webkitRequestAnimationFrame ||
+                        window.mozRequestAnimationFrame ||
+                        window.oRequestAnimationFrame ||
+                        window.msRequestAnimationFrame ||
+                        function (/* function */ callback, /* DOMElement */ element) {
+                            window.setTimeout(callback, 1000 / 60);
+                        };
+            })();
+
+            var SCALE = 30;
+
+            var canvas = document.getElementById("canvas");
+            var ctx = canvas.getContext("2d");
+
+            var world;
+            var pegs = new Array();
+            var balls = new Array();
+            var walls = new Array();
+            var holders = new Array();
+
+            var started = false;
+            var done = false;
+
+            document.addEventListener('keydown', function (event)
+            {
+                var b2Vec2 = Box2D.Common.Math.b2Vec2;
+                var INCREMENT = 0.5;
+
+                if (event.keyCode === 37)
+                {
+                    if (holders !== null)
+                    {
+                        if (balls[0].GetPosition().x - balls[0].m_fixtureList.m_shape.GetRadius() - INCREMENT >= 0)
+                        {
+                            for (var i = 0; i < holders.length; i++) {
+                                holders[i].SetPosition(new b2Vec2(holders[i].GetPosition().x - INCREMENT, holders[i].GetPosition().y));
+                            }
+                        }
+                    }
+                }
+                else if (event.keyCode === 39)
+                {
+                    if (holders !== null) 
+                    {
+                        if (balls[0].GetPosition().x + balls[0].m_fixtureList.m_shape.GetRadius() + INCREMENT <= canvas.width/30)
+                        {
+                            for (var i = 0; i < holders.length; i++)
+                            {
+                                holders[i].SetPosition(new b2Vec2(holders[i].GetPosition().x + INCREMENT, holders[i].GetPosition().y));
+                            }
+                        }
+                    }
+                }
+                else if (event.keyCode === 13)
+                {
+                    if (holders !== null)
+                    {
+                        for(var i = 0; i<holders.length; i++)
+                        {
+                            world.DestroyBody(holders[i]);
+                        }
+
+                        started = true;
+                    }
+                }
+            });            
+
+            function init()
+            {
+                var b2Vec2 = Box2D.Common.Math.b2Vec2
+                    , b2AABB = Box2D.Collision.b2AABB
+         	        , b2BodyDef = Box2D.Dynamics.b2BodyDef
+         	        , b2Body = Box2D.Dynamics.b2Body
+         	        , b2FixtureDef = Box2D.Dynamics.b2FixtureDef
+         	        , b2Fixture = Box2D.Dynamics.b2Fixture
+         	        , b2World = Box2D.Dynamics.b2World
+         	        , b2MassData = Box2D.Collision.Shapes.b2MassData
+         	        , b2PolygonShape = Box2D.Collision.Shapes.b2PolygonShape
+         	        , b2CircleShape = Box2D.Collision.Shapes.b2CircleShape
+         	        , b2DebugDraw = Box2D.Dynamics.b2DebugDraw
+                    , b2MouseJointDef = Box2D.Dynamics.Joints.b2MouseJointDef
+                ;
+
+                world = new b2World(new b2Vec2(0, 10), true);
+
+                var bodyDef = new b2BodyDef;
+
+                var fixDef = new b2FixtureDef;
+                fixDef.density = 1.0;
+                fixDef.friction = 0.0;
+                fixDef.restitution = 0.3;
+
+                //create an initial "ball bin" that holds the ball until the user is ready to drop it
+                //once we receiver "drop" input, we'll destroy this bin, letting the ball drop.
+                //friction is 0 so the ball should continue spinning.
+                var holderwall;
+                bodyDef.type = b2Body.b2_kinematicBody;
+
+                //left
+                fixDef.shape = new b2PolygonShape;
+                fixDef.shape.SetAsBox(.03333, 2);
+                bodyDef.position.Set(15.13333, .5);
+                holderwall = world.CreateBody(bodyDef);
+                holderwall.CreateFixture(fixDef);
+                holders.push(holderwall);
+                //right
+                fixDef.shape = new b2PolygonShape;
+                fixDef.shape.SetAsBox(.03333, 2);
+                bodyDef.position.Set(18.13333, .5);
+                holderwall = world.CreateBody(bodyDef);
+                holderwall.CreateFixture(fixDef);
+                holders.push(holderwall);
+                //bottom
+                fixDef.shape = new b2PolygonShape;
+                fixDef.shape.SetAsBox(2, .03333);
+                bodyDef.position.Set(canvas.width/2/30, 2);
+                holderwall = world.CreateBody(bodyDef);
+                holderwall.CreateFixture(fixDef);
+                holders.push(holderwall);
+
+
+
+                fixDef = new b2FixtureDef;
+                fixDef.density = 1.0;
+                fixDef.friction = 0.5;
+                fixDef.restitution = 0.3;
+
+                //create ground
+                var wall;
+
+                bodyDef.type = b2Body.b2_staticBody;
+
+                fixDef.shape = new b2PolygonShape;
+                fixDef.shape.SetAsBox(33, 0.033333333);
+                bodyDef.position.Set(2, 26.66666);
+                world.CreateBody(bodyDef).CreateFixture(fixDef);                
+
+                //create walls
+                //left
+                fixDef.shape = new b2PolygonShape;
+                fixDef.shape.SetAsBox(.033333333, 26.66666);
+                bodyDef.position.Set(0, 0);
+                wall = world.CreateBody(bodyDef);
+                wall.CreateFixture(fixDef);
+                //walls.push(wall);
+
+                //right
+                fixDef.shape = new b2PolygonShape;
+                fixDef.shape.SetAsBox(.0333333333, 26.66666);
+                bodyDef.position.Set(33.2666, 0);
+                wall = world.CreateBody(bodyDef);
+                wall.CreateFixture(fixDef);
+                //walls.push(wall);
+
+                //create bins
+                //1
+                fixDef.shape = new b2PolygonShape;
+                fixDef.shape.SetAsBox(.03333, 4);
+                bodyDef.position.Set(6.65333, 26.66666);
+                wall = world.CreateBody(bodyDef);
+                wall.CreateFixture(fixDef);
+                walls.push(wall);
+                //2
+                fixDef.shape = new b2PolygonShape;
+                fixDef.shape.SetAsBox(.03333, 4);
+                bodyDef.position.Set(13.30666, 26.66666);
+                wall = world.CreateBody(bodyDef);
+                wall.CreateFixture(fixDef);
+                walls.push(wall);
+                //3
+                fixDef.shape = new b2PolygonShape;
+                fixDef.shape.SetAsBox(.03333, 4);
+                bodyDef.position.Set(19.95999, 26.66666);
+                wall = world.CreateBody(bodyDef);
+                wall.CreateFixture(fixDef);
+                walls.push(wall);
+                //4
+                fixDef.shape = new b2PolygonShape;
+                fixDef.shape.SetAsBox(.03333, 4);
+                bodyDef.position.Set(26.25323, 26.66666);
+                wall = world.CreateBody(bodyDef);
+                wall.CreateFixture(fixDef);
+                walls.push(wall);
+
+                //create pegs
+                var peg;
+
+                //level 1
+                fixDef.shape = new b2CircleShape(0.1);
+                bodyDef.position.x = 4.63333;
+                bodyDef.position.y = 4;
+                peg = world.CreateBody(bodyDef);
+                peg.CreateFixture(fixDef);
+                pegs.push(peg);
+
+                fixDef.shape = new b2CircleShape(0.1);
+                bodyDef.position.x = 10.63333;
+                bodyDef.position.y = 4;
+                peg = world.CreateBody(bodyDef);
+                peg.CreateFixture(fixDef);
+                pegs.push(peg);
+
+                fixDef.shape = new b2CircleShape(0.1);
+                bodyDef.position.x = 16.63333;
+                bodyDef.position.y = 4;
+                peg = world.CreateBody(bodyDef);
+                peg.CreateFixture(fixDef);
+                pegs.push(peg);
+
+                fixDef.shape = new b2CircleShape(0.1);
+                bodyDef.position.x = 22.63333;
+                bodyDef.position.y = 4;
+                peg = world.CreateBody(bodyDef);
+                peg.CreateFixture(fixDef);
+                pegs.push(peg);
+
+                fixDef.shape = new b2CircleShape(0.1);
+                bodyDef.position.x = 28.63333;
+                bodyDef.position.y = 4;
+                peg = world.CreateBody(bodyDef);
+                peg.CreateFixture(fixDef);
+                pegs.push(peg);
+
+                //level 2
+                fixDef.shape = new b2CircleShape(4.5);                
+                bodyDef.position.x = -2.36667
+                bodyDef.position.y = 8;
+                peg = world.CreateBody(bodyDef);
+                peg.CreateFixture(fixDef);
+                pegs.push(peg);
+
+                fixDef.shape = new b2CircleShape(0.1);
+                bodyDef.position.x = 7.63333;
+                bodyDef.position.y = 8;
+                peg = world.CreateBody(bodyDef);
+                peg.CreateFixture(fixDef);
+                pegs.push(peg);
+
+                fixDef.shape = new b2CircleShape(0.1);
+                bodyDef.position.x = 13.63333;
+                bodyDef.position.y = 8;
+                peg = world.CreateBody(bodyDef);
+                peg.CreateFixture(fixDef);
+                pegs.push(peg);
+
+                fixDef.shape = new b2CircleShape(0.1);
+                bodyDef.position.x = 19.63333;
+                bodyDef.position.y = 8;
+                peg = world.CreateBody(bodyDef);
+                peg.CreateFixture(fixDef);
+                pegs.push(peg);
+
+                fixDef.shape = new b2CircleShape(0.1);
+                bodyDef.position.x = 25.63333;
+                bodyDef.position.y = 8;
+                peg = world.CreateBody(bodyDef);
+                peg.CreateFixture(fixDef);
+                pegs.push(peg);
+
+                fixDef.shape = new b2CircleShape(4.5);
+                bodyDef.position.x = 35.63333;
+                bodyDef.position.y = 8;
+                peg = world.CreateBody(bodyDef);
+                peg.CreateFixture(fixDef);
+                pegs.push(peg);
+
+                //level 3
+                fixDef.shape = new b2CircleShape(0.1);
+                bodyDef.position.x = 4.63333;
+                bodyDef.position.y = 12;
+                peg = world.CreateBody(bodyDef);
+                peg.CreateFixture(fixDef);
+                pegs.push(peg);
+
+                fixDef.shape = new b2CircleShape(0.1);
+                bodyDef.position.x = 10.63333;
+                bodyDef.position.y = 12;
+                peg = world.CreateBody(bodyDef);
+                peg.CreateFixture(fixDef);
+                pegs.push(peg);
+
+                fixDef.shape = new b2CircleShape(0.1);
+                bodyDef.position.x = 16.63333;
+                bodyDef.position.y = 12;
+                peg = world.CreateBody(bodyDef);
+                peg.CreateFixture(fixDef);
+                pegs.push(peg);
+
+                fixDef.shape = new b2CircleShape(0.1);
+                bodyDef.position.x = 22.63333;
+                bodyDef.position.y = 12;
+                peg = world.CreateBody(bodyDef);
+                peg.CreateFixture(fixDef);
+                pegs.push(peg);
+
+                fixDef.shape = new b2CircleShape(0.1);
+                bodyDef.position.x = 28.63333;
+                bodyDef.position.y = 12;
+                peg = world.CreateBody(bodyDef);
+                peg.CreateFixture(fixDef);
+                pegs.push(peg);
+
+                //level 4
+                fixDef.shape = new b2CircleShape(4.5);
+                bodyDef.position.x = -2.36667
+                bodyDef.position.y = 16;
+                peg = world.CreateBody(bodyDef);
+                peg.CreateFixture(fixDef);
+                pegs.push(peg);
+
+                fixDef.shape = new b2CircleShape(0.1);
+                bodyDef.position.x = 7.63333;
+                bodyDef.position.y = 16;
+                peg = world.CreateBody(bodyDef);
+                peg.CreateFixture(fixDef);
+                pegs.push(peg);
+
+                fixDef.shape = new b2CircleShape(0.1);
+                bodyDef.position.x = 13.63333;
+                bodyDef.position.y = 16;
+                peg = world.CreateBody(bodyDef);
+                peg.CreateFixture(fixDef);
+                pegs.push(peg);
+
+                fixDef.shape = new b2CircleShape(0.1);
+                bodyDef.position.x = 19.63333;
+                bodyDef.position.y = 16;
+                peg = world.CreateBody(bodyDef);
+                peg.CreateFixture(fixDef);
+                pegs.push(peg);
+
+                fixDef.shape = new b2CircleShape(0.1);
+                bodyDef.position.x = 25.63333;
+                bodyDef.position.y = 16;
+                peg = world.CreateBody(bodyDef);
+                peg.CreateFixture(fixDef);
+                pegs.push(peg);
+
+                fixDef.shape = new b2CircleShape(4.5);
+                bodyDef.position.x = 35.63333;
+                bodyDef.position.y = 16;
+                peg = world.CreateBody(bodyDef);
+                peg.CreateFixture(fixDef);
+                pegs.push(peg);
+
+                //level 5
+                fixDef.shape = new b2CircleShape(0.1);
+                bodyDef.position.x = 4.63333;
+                bodyDef.position.y = 20;
+                peg = world.CreateBody(bodyDef);
+                peg.CreateFixture(fixDef);
+                pegs.push(peg);
+
+                fixDef.shape = new b2CircleShape(0.1);
+                bodyDef.position.x = 10.63333;
+                bodyDef.position.y = 20;
+                peg = world.CreateBody(bodyDef);
+                peg.CreateFixture(fixDef);
+                pegs.push(peg);
+
+                fixDef.shape = new b2CircleShape(0.1);
+                bodyDef.position.x = 16.63333;
+                bodyDef.position.y = 20;
+                peg = world.CreateBody(bodyDef);
+                peg.CreateFixture(fixDef);
+                pegs.push(peg);
+
+                fixDef.shape = new b2CircleShape(0.1);
+                bodyDef.position.x = 22.63333;
+                bodyDef.position.y = 20;
+                peg = world.CreateBody(bodyDef);
+                peg.CreateFixture(fixDef);
+                pegs.push(peg);
+
+                fixDef.shape = new b2CircleShape(0.1);
+                bodyDef.position.x = 28.63333;
+                bodyDef.position.y = 20;
+                peg = world.CreateBody(bodyDef);
+                peg.CreateFixture(fixDef);
+                pegs.push(peg);
+
+                //create some objects
+                var ball;
+
+                bodyDef.type = b2Body.b2_dynamicBody;
+                bodyDef.allowSleep = true;
+
+                fixDef.shape = new b2CircleShape(1.5);
+                bodyDef.position.x = 16.6333;
+                bodyDef.position.y = .5;                
+                ball = world.CreateBody(bodyDef);                
+                ball.CreateFixture(fixDef);
+                ball.SetAngularVelocity(Math.floor((Math.random() * 20) - 10));
+                balls.push(ball);
+               
+                //setup debug draw
+                var debugDraw = new b2DebugDraw();
+                debugDraw.SetSprite(document.getElementById("canvas").getContext("2d"));
+                debugDraw.SetDrawScale(SCALE);
+                debugDraw.SetFillAlpha(0.5);
+                debugDraw.SetLineThickness(1.0);
+                debugDraw.SetFlags(b2DebugDraw.e_shapeBit | b2DebugDraw.e_jointBit);
+                world.SetDebugDraw(debugDraw);
+
+            }
+
+            function update()
+            {
+                world.Step(
+                    1 / 60
+                    , 10
+                    , 10
+                );
+                
+
+                display();
+                if (!isBallMoving())
+                {
+                    //TODO: hide the canvas, figure out which bin the ball is in and display a prize
+                    displayPrize();
+                    done = true;                    
+                }
+                
+
+                //world.DrawDebugData();
+                world.ClearForces();
+
+                requestAnimFrame(update);                
+
+            }
+
+            function displayPrize()
+            {
+                if (!done)
+                {
+                    var location = balls[0].GetPosition().x * SCALE;
+
+                    if (location >= 0 && location <= 199) {
+                        alert("bin 1");
+                    }
+                    else if (location >= 200 && location <= 399) {
+                        alert("bin 2");
+                    }
+                    else if (location >= 400 && location <= 599) {
+                        alert("bin 3");
+                    }
+                    else if (location >= 600 && location <= 798) {
+                        alert("bin 4");
+                    }
+                    else if (location >= 799 && location <= 998) {
+                        alert("bin 5");
+                    }
+                    else
+                    {
+                        alert("dunno");
+                    }
+                }
+            }
+
+            function isBallMoving()
+            {
+                if (started)
+                {
+                    for (var i = 0; i < balls.length; i++)
+                    {
+                        if (balls[i].IsAwake() === false)
+                        {
+                            return false;
+                        }
+
+                        if ((balls[i].GetLinearVelocity().x * balls[i].GetLinearVelocity().x + balls[i].GetLinearVelocity().y * balls[i].GetLinearVelocity().y <= 0.2) && (balls[i].GetPosition().y * SCALE >= canvas.height - 120))
+                        {
+                            return false;
+                        }
+                    }
+                }
+
+                return true;
+            }
+
+            function display()
+            {
+
+
+                //first we'll clear the canvas before re-rendering
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                for(var i = 0; i<pegs.length; i++)
+                {
+                    ctx.beginPath();
+                    ctx.arc(pegs[i].GetPosition().x*SCALE, pegs[i].GetPosition().y*SCALE, pegs[i].m_fixtureList.m_shape.GetRadius()*SCALE, 0, 2 * Math.PI);
+                    ctx.stroke();
+                }
+
+                for(var i = 0; i<balls.length; i++)
+                {
+                    ctx.beginPath();
+                    ctx.arc(balls[i].GetPosition().x * SCALE, balls[i].GetPosition().y * SCALE, balls[i].m_fixtureList.m_shape.GetRadius() * SCALE, 0, 2 * Math.PI);
+                    ctx.stroke();
+                }
+
+                for(var i = 0; i<walls.length; i++)
+                {
+                    var startX, startY, width, height;
+                    width = walls[i].m_fixtureList.m_shape.GetVertices()[2].x * SCALE;
+                    height = walls[i].m_fixtureList.m_shape.GetVertices()[2].y * SCALE;
+                    startX = walls[i].GetPosition().x * SCALE - width;
+                    startY = walls[i].GetPosition().y * SCALE - height;                    
+                    ctx.strokeRect(startX, startY, width, height);                    
+                }
+            }
+
+            init();
+            requestAnimFrame(update);
+            
+        </script>
+    </body>
+
+</html>
